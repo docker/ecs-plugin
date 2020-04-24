@@ -15,7 +15,7 @@ var defaultTaskExecutionRole *string
 
 // GetEcsTaskExecutionRole retrieve the role ARN to apply for task execution
 func (c client) GetEcsTaskExecutionRole(spec types.ServiceConfig) (*string, error) {
-	if arn, ok := spec.Extras["x-ecs-TaskExecutionRole"]; ok {
+	if arn, ok := spec.Extras["x-aws-TaskExecutionRole"]; ok {
 		s := arn.(string)
 		return &s, nil
 	}
