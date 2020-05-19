@@ -1,0 +1,41 @@
+name: e2e-tests
+on:
+  schedule:
+    - cron: "* */24 * * *"
+jobs:
+  build:
+    name: e2e
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go 1.13
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.13
+        id: go
+
+      - name: Install golangci-lint
+        run: curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sudo sh -s -- -b /usr/local/bin v1.18.0
+
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Get dependencies
+        run: go get -v -t -d ./...
+
+      - name: Lint
+        run: make lint
+
+      - name: Build
+        run: make build -j3
+
+      - name: Create AWS profile
+        uses: mrchief/aws-creds-okta@master # or a tagged release version
+        with:
+          aws_role_arn: arn:aws:iam::175142243308:role/okta.sandbox
+          okta_username: guillaume.lours@docker.com
+          okta_password: ${{ secrets.OKTA_PASSWORD }}
+          okta_app_url: https://docker.okta.com/home/amazondeveloper/0oadx4cbbkbGWcqeO1t7/8629
+          okta_mfa_seed: ${{ secrets.OKTA_MFA_SEED }}
+
+      - name: e2e tests
+        run: make e2e
