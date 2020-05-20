@@ -33,7 +33,7 @@ jobs:
         with:
           aws_role_arn: arn:aws:iam::175142243308:role/okta.sandbox
           okta_username: guillaume.lours@docker.com
-          okta_password: ${{ secrets.OKTA_PASSWORD }}
+          okta_passowrd: ${{ secrets.OKTA_PASSWORD }}
           okta_app_url: https://docker.okta.com/home/amazondeveloper/0oadx4cbbkbGWcqeO1t7/8629
           okta_mfa_seed: ${{ secrets.OKTA_MFA_SEED }}
 
