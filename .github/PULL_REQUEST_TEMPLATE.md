@@ -1,9 +1,9 @@
-<-- Make sure all your commits include a signature generated with `git commit -s` 
+<!-- Make sure all your commits include a signature generated with `git commit -s`
 -->
 **What I did**
 
 **Related issue**
-<-- If this is a bug fix, make sure your description includes "fixes #xxxx", or
+<!-- If this is a bug fix, make sure your description includes "fixes #xxxx", or
     "closes #xxxx"
 -->
 
