@@ -8,6 +8,7 @@ import (
 
 const (
 	ProjectTag = "com.docker.compose.project"
+	ServiceTag = "com.docker.compose.service"
 	NetworkTag = "com.docker.compose.network"
 )
 

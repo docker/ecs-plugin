@@ -58,27 +58,7 @@
       },
       "Type": "AWS::Logs::LogGroup"
     },
-    "TestSimpleWithOverridesDefaultNetwork": {
-      "Properties": {
-        "GroupDescription": "TestSimpleWithOverrides default Security Group",
-        "GroupName": "TestSimpleWithOverridesDefaultNetwork",
-        "Tags": [
-          {
-            "Key": "com.docker.compose.project",
-            "Value": "TestSimpleWithOverrides"
-          },
-          {
-            "Key": "com.docker.compose.network",
-            "Value": "default"
-          }
-        ],
-        "VpcId": {
-          "Ref": "ParameterVPCId"
-        }
-      },
-      "Type": "AWS::EC2::SecurityGroup"
-    },
-    "simpleService": {
+    "SimpleService": {
       "Properties": {
         "Cluster": {
           "Fn::If": [
@@ -117,19 +97,29 @@
           {
             "RegistryArn": {
               "Fn::GetAtt": [
-                "simpleServiceDiscoveryEntry",
+                "SimpleServiceDiscoveryEntry",
                 "Arn"
               ]
             }
           }
         ],
+        "Tags": [
+          {
+            "Key": "com.docker.compose.project",
+            "Value": "TestSimpleWithOverrides"
+          },
+          {
+            "Key": "com.docker.compose.service",
+            "Value": "simple"
+          }
+        ],
         "TaskDefinition": {
-          "Ref": "simpleTaskDefinition"
+          "Ref": "SimpleTaskDefinition"
         }
       },
       "Type": "AWS::ECS::Service"
     },
-    "simpleServiceDiscoveryEntry": {
+    "SimpleServiceDiscoveryEntry": {
       "Properties": {
         "Description": "\"simple\" service discovery entry in Cloud Map",
         "DnsConfig": {
@@ -148,7 +138,7 @@
       },
       "Type": "AWS::ServiceDiscovery::Service"
     },
-    "simpleTaskDefinition": {
+    "SimpleTaskDefinition": {
       "Properties": {
         "ContainerDefinitions": [
           {
@@ -181,7 +171,7 @@
                 "awslogs-region": {
                   "Ref": "AWS::Region"
                 },
-                "awslogs-stream-prefix": "simple"
+                "awslogs-stream-prefix": "TestSimpleWithOverrides"
               }
             },
             "Name": "simple"
@@ -189,7 +179,7 @@
         ],
         "Cpu": "256",
         "ExecutionRoleArn": {
-          "Ref": "simpleTaskExecutionRole"
+          "Ref": "SimpleTaskExecutionRole"
         },
         "Family": "TestSimpleWithOverrides-simple",
         "Memory": "512",
@@ -200,7 +190,7 @@
       },
       "Type": "AWS::ECS::TaskDefinition"
     },
-    "simpleTaskExecutionRole": {
+    "SimpleTaskExecutionRole": {
       "Properties": {
         "AssumeRolePolicyDocument": {
           "Statement": [
@@ -222,6 +212,37 @@
         ]
       },
       "Type": "AWS::IAM::Role"
+    },
+    "TestSimpleWithOverridesDefaultNetwork": {
+      "Properties": {
+        "GroupDescription": "TestSimpleWithOverrides default Security Group",
+        "GroupName": "TestSimpleWithOverridesDefaultNetwork",
+        "Tags": [
+          {
+            "Key": "com.docker.compose.project",
+            "Value": "TestSimpleWithOverrides"
+          },
+          {
+            "Key": "com.docker.compose.network",
+            "Value": "default"
+          }
+        ],
+        "VpcId": {
+          "Ref": "ParameterVPCId"
+        }
+      },
+      "Type": "AWS::EC2::SecurityGroup"
+    },
+    "TestSimpleWithOverridesDefaultNetworkIngress": {
+      "Properties": {
+        "CidrIp": "0.0.0.0/0",
+        "Description": "Allow communication within network default",
+        "GroupId": {
+          "Ref": "TestSimpleWithOverridesDefaultNetwork"
+        },
+        "IpProtocol": "-1"
+      },
+      "Type": "AWS::EC2::SecurityGroupIngress"
     }
   }
 }

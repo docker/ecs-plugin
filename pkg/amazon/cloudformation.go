@@ -2,7 +2,10 @@ package amazon
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
+
+	"github.com/compose-spec/compose-go/types"
 
 	"github.com/sirupsen/logrus"
 
@@ -76,9 +79,11 @@ func (c client) Convert(project *compose.Project) (*cloudformation.Template, err
 	}
 	cluster := cloudformation.If("CreateCluster", cloudformation.Ref("Cluster"), cloudformation.Ref(ParameterClusterName))
 
-	for net := range project.Networks {
-		name, resource := convertNetwork(project, net, cloudformation.Ref(ParameterVPCId))
-		template.Resources[name] = resource
+	for _, net := range project.Networks {
+		resources := convertNetwork(project, net, cloudformation.Ref(ParameterVPCId))
+		for name, resource := range resources {
+			template.Resources[name] = resource
+		}
 	}
 
 	logGroup := fmt.Sprintf("/docker-compose/%s", project.Name)
@@ -99,7 +104,7 @@ func (c client) Convert(project *compose.Project) (*cloudformation.Template, err
 			return nil, err
 		}
 
-		taskExecutionRole := fmt.Sprintf("%sTaskExecutionRole", service.Name)
+		taskExecutionRole := fmt.Sprintf("%sTaskExecutionRole", resourceName(service.Name))
 		policy, err := c.getPolicy(definition)
 		if err != nil {
 			return nil, err
@@ -114,7 +119,7 @@ func (c client) Convert(project *compose.Project) (*cloudformation.Template, err
 		}
 		definition.ExecutionRoleArn = cloudformation.Ref(taskExecutionRole)
 
-		taskDefinition := fmt.Sprintf("%sTaskDefinition", service.Name)
+		taskDefinition := fmt.Sprintf("%sTaskDefinition", resourceName(service.Name))
 		template.Resources[taskExecutionRole] = &iam.Role{
 			AssumeRolePolicyDocument: assumeRolePolicyDocument,
 			Policies:                 rolePolicies,
@@ -130,7 +135,7 @@ func (c client) Convert(project *compose.Project) (*cloudformation.Template, err
 			// FIXME ECS only support HTTP(s) health checks, while Docker only support CMD
 		}
 
-		serviceRegistration := fmt.Sprintf("%sServiceDiscoveryEntry", service.Name)
+		serviceRegistration := fmt.Sprintf("%sServiceDiscoveryEntry", resourceName(service.Name))
 		template.Resources[serviceRegistration] = &cloudmap.Service{
 			Description:       fmt.Sprintf("%q service discovery entry in Cloud Map", service.Name),
 			HealthCheckConfig: healthCheck,
@@ -153,7 +158,7 @@ func (c client) Convert(project *compose.Project) (*cloudformation.Template, err
 			serviceSecurityGroups = append(serviceSecurityGroups, cloudformation.Ref(logicalName))
 		}
 
-		template.Resources[fmt.Sprintf("%sService", service.Name)] = &ecs.Service{
+		template.Resources[fmt.Sprintf("%sService", resourceName(service.Name))] = &ecs.Service{
 			Cluster:      cluster,
 			DesiredCount: 1,
 			LaunchType:   ecsapi.LaunchTypeFargate,
@@ -174,31 +179,45 @@ func (c client) Convert(project *compose.Project) (*cloudformation.Template, err
 					RegistryArn: cloudformation.GetAtt(serviceRegistration, "Arn"),
 				},
 			},
+			Tags: []tags.Tag{
+				{
+					Key:   ProjectTag,
+					Value: project.Name,
+				},
+				{
+					Key:   ServiceTag,
+					Value: service.Name,
+				},
+			},
 			TaskDefinition: cloudformation.Ref(taskDefinition),
 		}
 	}
 	return template, nil
 }
 
-func convertNetwork(project *compose.Project, net string, vpc string) (string, cloudformation.Resource) {
+func convertNetwork(project *compose.Project, net types.NetworkConfig, vpc string) cloudformation.Resources {
+	resources := cloudformation.Resources{}
 	var ingresses []ec2.SecurityGroup_Ingress
-	for _, service := range project.Services {
-		if _, ok := service.Networks[net]; ok {
-			for _, port := range service.Ports {
-				ingresses = append(ingresses, ec2.SecurityGroup_Ingress{
-					CidrIp:      "0.0.0.0/0",
-					Description: fmt.Sprintf("%s:%d/%s", service.Name, port.Target, port.Protocol),
-					FromPort:    int(port.Target),
-					IpProtocol:  strings.ToUpper(port.Protocol),
-					ToPort:      int(port.Target),
-				})
+	if !net.Internal {
+		// FIXME those Ingress rules will be later replaced by LoadBalancer configuration
+		for _, service := range project.Services {
+			if _, ok := service.Networks[net.Name]; ok {
+				for _, port := range service.Ports {
+					ingresses = append(ingresses, ec2.SecurityGroup_Ingress{
+						CidrIp:      "0.0.0.0/0",
+						Description: fmt.Sprintf("%s:%d/%s", service.Name, port.Target, port.Protocol),
+						FromPort:    int(port.Target),
+						IpProtocol:  strings.ToUpper(port.Protocol),
+						ToPort:      int(port.Target),
+					})
+				}
 			}
 		}
 	}
 
-	securityGroup := networkResourceName(project, net)
-	resource := &ec2.SecurityGroup{
-		GroupDescription:     fmt.Sprintf("%s %s Security Group", project.Name, net),
+	securityGroup := networkResourceName(project, net.Name)
+	resources[securityGroup] = &ec2.SecurityGroup{
+		GroupDescription:     fmt.Sprintf("%s %s Security Group", project.Name, net.Name),
 		GroupName:            securityGroup,
 		SecurityGroupIngress: ingresses,
 		VpcId:                vpc,
@@ -209,19 +228,30 @@ func convertNetwork(project *compose.Project, net string, vpc string) (string, c
 			},
 			{
 				Key:   NetworkTag,
-				Value: net,
+				Value: net.Name,
 			},
 		},
 	}
-	return securityGroup, resource
+
+	ingress := securityGroup + "Ingress"
+	resources[ingress] = &ec2.SecurityGroupIngress{
+		Description: fmt.Sprintf("Allow communication within network %s", net.Name),
+		CidrIp:      "0.0.0.0/0",
+		IpProtocol:  "-1", // all protocols
+		GroupId:     cloudformation.Ref(securityGroup),
+	}
+	return resources
 }
 
 func networkResourceName(project *compose.Project, network string) string {
-	return fmt.Sprintf("%s%sNetwork", project.Name, strings.Title(network))
+	return fmt.Sprintf("%s%sNetwork", resourceName(project.Name), resourceName(network))
+}
+
+func resourceName(s string) string {
+	return strings.Title(regexp.MustCompile("[^a-zA-Z0-9]+").ReplaceAllString(s, ""))
 }
 
 func (c client) getPolicy(taskDef *ecs.TaskDefinition) (*PolicyDocument, error) {
-
 	arns := []string{}
 	for _, container := range taskDef.ContainerDefinitions {
 		if container.RepositoryCredentials != nil {

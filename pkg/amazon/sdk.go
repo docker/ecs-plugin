@@ -3,7 +3,10 @@ package amazon
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
+
+	"github.com/docker/ecs-plugin/pkg/console"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -311,6 +314,7 @@ func (s sdk) DeleteSecret(ctx context.Context, id string, recover bool) error {
 
 func (s sdk) GetLogs(ctx context.Context, name string) error {
 	logGroup := fmt.Sprintf("/docker-compose/%s", name)
+	colors := map[string]console.ColorFunc{}
 	var startTime int64
 	for {
 		var hasMore = true
@@ -331,7 +335,14 @@ func (s sdk) GetLogs(ctx context.Context, name string) error {
 			}
 
 			for _, event := range events.Events {
-				fmt.Println(*event.Message)
+				// TODO produce an event stream and move this outside SDK package
+				cf, ok := colors[*event.LogStreamName]
+				if !ok {
+					cf = <-console.Rainbow
+					colors[*event.LogStreamName] = cf
+				}
+				n := strings.Split(*event.LogStreamName, "/")
+				fmt.Printf("%s | %s\n", cf(n[1]), *event.Message)
 				startTime = *event.IngestionTime
 			}
 		}
