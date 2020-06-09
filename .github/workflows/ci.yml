@@ -24,7 +24,11 @@ jobs:
         run: make lint
 
       - name: Build
+        env:
+          DOCKER_BUILDKIT: 1
         run: make build -j3
 
       - name: Test
+        env:
+          DOCKER_BUILDKIT: 1
         run: make test
