@@ -73,7 +73,7 @@ func UpCommand(dockerCli command.Cli, options *cli.ProjectOptions) *cobra.Comman
 	cmd := &cobra.Command{
 		Use: "up",
 		RunE: WithAwsContext(dockerCli, func(clusteropts docker.AwsContext, backend *amazon.Backend, args []string) error {
-			return backend.Up(context.Background(), *options)
+			return backend.Up(context.Background(), options.WithOsEnv())
 		}),
 	}
 	cmd.Flags().StringVar(&opts.loadBalancerArn, "load-balancer", "", "")
