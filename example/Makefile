@@ -8,6 +8,16 @@ all: build-image
 create-ecr:
 	aws ecr create-repository --repository-name ${FRONTEND_IMG}
 
+delete-ecr:
+	aws ecr batch-delete-image \
+		--registry-id $(REGISTRY_ID) \
+		--repository-name ${FRONTEND_IMG} \
+		--image-ids imageTag=$(shell aws ecr list-images \
+										--repository-name $(FRONTEND_IMG) \
+										--query 'imageIds[].imageTag' \
+										--output text)
+	aws ecr delete-repository --repository-name ${FRONTEND_IMG}
+
 build-image:
 	docker build -t $(REGISTRY_ID).$(DOCKER_PUSH_REPOSITORY)/$(FRONTEND_IMG) ./app
 	docker build -t $(FRONTEND_IMG) ./app
